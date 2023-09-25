@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
 
     char buffer2[5];
     read(p2[0], buffer2, 5);
-    printf("%d: parent received %s\n", getpid(), buffer2);
+    printf("%d: received %s\n", getpid(), buffer2);
     close(p2[0]);
   }
   else {
@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
     close(p2[0]);
     char buffer1[5];
     read(p1[0], buffer1, 5);
-    printf("%d: child received %s\n", getpid(), buffer1);
+    printf("%d: received %s\n", getpid(), buffer1);
     close(p1[0]);
 
     char buffer2[5] = "pong";
