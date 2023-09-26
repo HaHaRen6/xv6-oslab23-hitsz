@@ -4,7 +4,7 @@
 
 int main(int argc, char **argv) {
   if (argc != 1) {
-    printf("pingpoFng needs no argument!\n");
+    printf("pingpong needs no argument!\n");
     exit(-1);
   }
   // create pipe
