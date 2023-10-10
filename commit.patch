@@ -1,0 +1,259 @@
+diff --git a/Makefile b/Makefile
+index cac799d..30782d2 100644
+--- a/Makefile
++++ b/Makefile
+@@ -137,6 +137,7 @@ mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
+ # http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
+ .PRECIOUS: %.o
+ 
++# hhr: add new cmds here!
+ UPROGS=\
+ 	$U/_cat\
+ 	$U/_echo\
+@@ -154,6 +155,9 @@ UPROGS=\
+ 	$U/_grind\
+ 	$U/_wc\
+ 	$U/_zombie\
++	$U/_sleep\
++	$U/_pingpong\
++	$U/_find\
+ 
+ 
+ ifeq ($(LAB),syscall)
+diff --git a/README b/README
+index 06035bb..5bb3d5d 100644
+--- a/README
++++ b/README
+@@ -1,3 +1,7 @@
++# 操作系统实验课
++
++> 以下是原 README
++
+ xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
+ Version 6 (v6).  xv6 loosely follows the structure and style of v6,
+ but is implemented for a modern RISC-V multiprocessor using ANSI C.
+diff --git a/kernel/main.c b/kernel/main.c
+index 8a3dc2e..565904b 100644
+--- a/kernel/main.c
++++ b/kernel/main.c
+@@ -9,8 +9,9 @@ volatile static int started = 0;
+ // start() jumps here in supervisor mode on all CPUs.
+ void main() {
+   if (cpuid() == 0) {
++    printf("[210110404] enter main, init kernel\n");
+     // consoleinit();
+-    // printfinit();
++    // printfinit(); // hhr: has moved to start.c ?
+     printf("\n");
+     printf("xv6 kernel is booting\n");
+     printf("\n");
+diff --git a/kernel/proc.c b/kernel/proc.c
+index 1607145..1442e10 100644
+--- a/kernel/proc.c
++++ b/kernel/proc.c
+@@ -183,6 +183,7 @@ uchar initcode[] = {0x17, 0x05, 0x00, 0x00, 0x13, 0x05, 0x45, 0x02, 0x97, 0x05,
+ 
+ // Set up first user process.
+ void userinit(void) {
++  printf("[210110404] enter userinit\n");
+   struct proc *p;
+ 
+   p = allocproc();
+@@ -197,6 +198,7 @@ void userinit(void) {
+   p->trapframe->epc = 0;      // user program counter
+   p->trapframe->sp = PGSIZE;  // user stack pointer
+ 
++  printf("[210110404] copy initcode to first user process\n");
+   safestrcpy(p->name, "initcode", sizeof(p->name));
+   p->cwd = namei("/");
+ 
+diff --git a/kernel/start.c b/kernel/start.c
+index f704fee..3918c4e 100644
+--- a/kernel/start.c
++++ b/kernel/start.c
+@@ -52,6 +52,7 @@ void start() {
+     // init uart and printf
+     consoleinit();
+     printfinit();
++    printf("[210110404] in start, init driver, interrupts and change mode\n");
+   }
+ 
+   // switch to supervisor mode and jump to main().
+diff --git a/user/find.c b/user/find.c
+new file mode 100644
+index 0000000..6e906bd
+--- /dev/null
++++ b/user/find.c
+@@ -0,0 +1,80 @@
++#include "kernel/types.h"
++#include "kernel/stat.h"
++#include "user/user.h"
++#include "kernel/fs.h"
++
++/// @param path
++/// @return first character after last slash("/")
++char *filename(char *path) {
++  // static char buf[DIRSIZ + 1];
++  char *p;
++
++  // Find first character after last slash("/").
++  for (p = path + strlen(path); p >= path && *p != '/'; p--)
++    ;
++  p++;
++
++  return p;
++}
++
++void find(char *path, char *file){
++  char buf[512], *p;
++  int fd;
++  struct dirent de;
++  struct stat st;
++
++  if ((fd = open(path, 0)) < 0) {
++    fprintf(2, "find: cannot open %s\n", path);
++    return;
++  }
++
++  if (fstat(fd, &st) < 0) {
++    fprintf(2, "find: cannot stat %s\n", path);
++    close(fd);
++    return;
++  }
++
++  switch (st.type) {
++    case T_FILE:
++      if (path){
++        if (strcmp(filename(path), file) == 0){
++          printf("%s\n", path);
++        }
++      }
++      break;
++
++    case T_DIR:
++      if (strlen(path) + 1 + DIRSIZ + 1 > sizeof buf) {
++        printf("ls: path too long\n");
++        break;
++      }
++      strcpy(buf, path);
++      p = buf + strlen(buf);
++      *p++ = '/';
++      while (read(fd, &de, sizeof(de)) == sizeof(de)) {
++        if (de.inum == 0) continue;
++        memmove(p, de.name, DIRSIZ);
++        p[DIRSIZ] = 0;
++        if (stat(buf, &st) < 0) {
++          printf("ls: cannot stat %s\n", buf);
++          continue;
++        }
++
++        if (strcmp(filename(buf), ".") != 0 && strcmp(filename(buf), "..") != 0)
++        {
++          find(buf, file);
++        }
++      }
++      break;
++  }
++  close(fd);
++}
++
++int main(int argc, char *argv[]) {
++  if (argc != 3) {
++    printf("find needs 2 argument!\n");
++    exit(0);
++  }
++  find(argv[1], argv[2]);
++  exit(0);
++}
+diff --git a/user/pingpong.c b/user/pingpong.c
+new file mode 100644
+index 0000000..8d7266d
+--- /dev/null
++++ b/user/pingpong.c
+@@ -0,0 +1,45 @@
++#include "kernel/types.h"
++#include "user/user.h"
++#include "kernel/stat.h"
++
++int main(int argc, char **argv) {
++  if (argc != 1) {
++    printf("pingpong needs no argument!\n");
++    exit(-1);
++  }
++  // create pipe
++  int p1[2], p2[2];
++  // p[1] for in, p[0] for out
++  pipe(p1);
++  pipe(p2);
++
++
++  int pid;
++  if ((pid = fork()) != 0) {
++    // parent process
++    close(p1[0]);
++    close(p2[1]);
++    char buffer1[] = "ping";
++    write(p1[1], buffer1, 5);
++    close(p1[1]);
++
++    char buffer2[5];
++    read(p2[0], buffer2, 5);
++    printf("%d: received %s\n", getpid(), buffer2);
++    close(p2[0]);
++  }
++  else {
++    // child process
++    close(p1[1]);
++    close(p2[0]);
++    char buffer1[5];
++    read(p1[0], buffer1, 5);
++    printf("%d: received %s\n", getpid(), buffer1);
++    close(p1[0]);
++
++    char buffer2[5] = "pong";
++    write(p2[1], buffer2, 5);
++    close(p2[1]);
++  }
++  exit(0);
++}
+diff --git a/user/sh.c b/user/sh.c
+index 13c7d7c..eebbc85 100644
+--- a/user/sh.c
++++ b/user/sh.c
+@@ -54,6 +54,7 @@ void panic(char *);
+ struct cmd *parsecmd(char *);
+ 
+ // Execute cmd.  Never returns.
++__attribute__((noreturn))
+ void runcmd(struct cmd *cmd) {
+   int p[2];
+   struct backcmd *bcmd;
+@@ -144,6 +145,8 @@ int main(void) {
+     }
+   }
+ 
++  printf("[210110404] start sh through execve\n");
++
+   // Read and run input commands.
+   while (getcmd(buf, sizeof(buf)) >= 0) {
+     if (buf[0] == 'c' && buf[1] == 'd' && buf[2] == ' ') {
+diff --git a/user/sleep.c b/user/sleep.c
+new file mode 100644
+index 0000000..42118f5
+--- /dev/null
++++ b/user/sleep.c
+@@ -0,0 +1,14 @@
++#include "kernel/types.h"
++#include "user/user.h"
++
++int main(int argc, char **argv) {
++  if (argc != 2) {
++    printf("Sleep needs one argument!\n");
++    exit(-1);
++  }
++  int ticks = atoi(argv[1]);
++  sleep(ticks);
++  printf("(nothing happens for a little while)\n");
++  exit(0);
++}
++
