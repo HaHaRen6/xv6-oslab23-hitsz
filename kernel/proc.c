@@ -299,7 +299,7 @@ void exit(int status) {
 
   if (p == initproc) panic("init exiting");
 
-  // Close all open files.
+  // Close all open files in current process.
   for (int fd = 0; fd < NOFILE; fd++) {
     if (p->ofile[fd]) {
       struct file *f = p->ofile[fd];
@@ -330,6 +330,11 @@ void exit(int status) {
   // as anything else.
   acquire(&p->lock);
   struct proc *original_parent = p->parent;
+
+  // hhr-lab2.1
+  char *myState[] = {"unused", "sleep", "runable", "run", "zombie"};
+  exit_info("proc %d exit, parent pid %d, name %s, state %s\n", p->pid,
+      original_parent->pid, original_parent->name, myState[original_parent->state]);
   release(&p->lock);
 
   // we need the parent's lock in order to wake it up from wait().
@@ -337,6 +342,20 @@ void exit(int status) {
   acquire(&original_parent->lock);
 
   acquire(&p->lock);
+
+  // hhr-lab2.1
+  struct proc *pp;
+  int cnt = 0;
+
+  for (pp = proc; pp < &proc[NPROC]; pp++) {
+    if (pp->parent == p) {
+      acquire(&pp->lock);
+      cnt++;
+      exit_info("proc %d exit, chlid %d, pid %d, name %s, state %s\n", 
+          p->pid, cnt, pp->pid, pp->name, myState[pp->state]);
+      release(&pp->lock);
+    }
+  }
 
   // Give any children to init.
   reparent(p);
