@@ -21,7 +21,10 @@ uint64 sys_fork(void) { return fork(); }
 uint64 sys_wait(void) {
   uint64 p;
   if (argaddr(0, &p) < 0) return -1;
-  return wait(p);
+  // hhr-lab2.2
+  int q;
+  if (argint(1, &q) < 0) return -1;
+  return wait(p, q);
 }
 
 uint64 sys_sbrk(void) {
@@ -79,5 +82,12 @@ uint64 sys_rename(void) {
   struct proc *p = myproc();
   memmove(p->name, name, len);
   p->name[len] = '\0';
+  return 0;
+}
+
+// hhr-lab2.3
+uint64 sys_yield(void) {
+  struct proc *p = myproc();
+  printf("start to yield, user pc %p\n", p->trapframe->epc);
   return 0;
 }

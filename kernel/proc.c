@@ -330,9 +330,8 @@ void exit(int status) {
   // as anything else.
   acquire(&p->lock);
   struct proc *original_parent = p->parent;
-
   // hhr-lab2.1
-  char *myState[] = {"unused", "sleep", "runable", "run", "zombie"};
+  char *myState[] = {"unused", "sleep", "runble", "run", "zombie"};
   exit_info("proc %d exit, parent pid %d, name %s, state %s\n", p->pid,
       original_parent->pid, original_parent->name, myState[original_parent->state]);
   release(&p->lock);
@@ -346,14 +345,10 @@ void exit(int status) {
   // hhr-lab2.1
   struct proc *pp;
   int cnt = 0;
-
   for (pp = proc; pp < &proc[NPROC]; pp++) {
     if (pp->parent == p) {
-      acquire(&pp->lock);
-      cnt++;
-      exit_info("proc %d exit, chlid %d, pid %d, name %s, state %s\n", 
-          p->pid, cnt, pp->pid, pp->name, myState[pp->state]);
-      release(&pp->lock);
+      exit_info("proc %d exit, child %d, pid %d, name %s, state %s\n", 
+          p->pid, cnt++, pp->pid, pp->name, myState[pp->state]);
     }
   }
 
@@ -375,7 +370,7 @@ void exit(int status) {
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
-int wait(uint64 addr) {
+int wait(uint64 addr, int flags) {
   struct proc *np;
   int havekids, pid;
   struct proc *p = myproc();
@@ -414,7 +409,8 @@ int wait(uint64 addr) {
     }
 
     // No point waiting if we don't have any children.
-    if (!havekids || p->killed) {
+    // hhr-lab2.2
+    if (!havekids || p->killed || flags == 1) {
       release(&p->lock);
       return -1;
     }
