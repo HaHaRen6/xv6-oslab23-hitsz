@@ -99,7 +99,7 @@ int exec(char *path, char **argv) {
 
   // hhr-lab4.1
   if(p->pid == 1)
-    vmprint(p->pagetable);
+    vmprint(p->pagetable, 0, 0);
   
   return argc;  // this ends up in a0, the first argument to main(argc, argv)
 
